@@ -1,50 +1,23 @@
 package br.com.joguino.jwtauth.auth;
 
-import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.util.StringUtils;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.filter.GenericFilterBean;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Optional;
 
-@Log4j2
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-
+public class JwtAuthenticationFilter extends GenericFilterBean {
     @Override
-    protected void doFilterInternal(HttpServletRequest httpServletRequest,
-                                    HttpServletResponse httpServletResponse,
-                                    FilterChain filterChain) throws IOException, ServletException {
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        Authentication authentication = JwtTokenProvider
+                .getAuthentication((HttpServletRequest) servletRequest);
 
-        String jwt = getJwtFromRequest(httpServletRequest);
-
-        if (!StringUtils.isEmpty(jwt) && jwtTokenProvider.isTokenValid(jwt)) {
-            try {
-
-
-                UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken("Test", 123L, null);
-
-                SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-
-            } catch (Exception e) {
-                log.error("Error {}", jwt);
-            }
-        }
-        filterChain.doFilter(httpServletRequest, httpServletResponse);
-    }
-
-    private String getJwtFromRequest(HttpServletRequest request) {
-        return Optional.ofNullable(request.getHeader("Authorization"))
-                .map(authorization -> authorization.replace("Bearer ", ""))
-                .orElse("");
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        filterChain.doFilter(servletRequest, servletResponse);
     }
 }

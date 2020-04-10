@@ -4,24 +4,30 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.Date;
 
 @Log4j2
-@Component
 public class JwtTokenProvider {
+
+    private JwtTokenProvider() {
+        throw new UnsupportedOperationException();
+    }
 
     private static final SecretKey JWT_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS512);
 
-    public String generateJwtToken() {
-
-        return Jwts.builder()
-                .setSubject("Test")
+    static void generateJwtToken(HttpServletResponse response, String username) {
+        String jwt = Jwts.builder()
+                .setSubject(username)
                 .setIssuedAt(Date.from(LocalDateTime.now()
                         .atZone(ZoneId.systemDefault())
                         .toInstant())
@@ -31,26 +37,24 @@ public class JwtTokenProvider {
                         .toInstant())
                 ).signWith(JWT_KEY)
                 .compact();
+        response.addHeader("Authorization", "Bearer" + " " + jwt);
     }
 
-    public boolean isTokenValid(String authToken) {
-        JwtParser parser = Jwts.parserBuilder()
-                .setSigningKey(JWT_KEY)
-                .build();
-        try {
-            parser.parse(authToken);
-            return true;
-        } catch (ExpiredJwtException e) {
-            log.error("Expired Token");
-        } catch (UnsupportedJwtException e) {
-            log.error("Unsupported Token");
-        } catch (MalformedJwtException e) {
-            log.error("Invalid Token");
-        } catch (SignatureException e) {
-            log.error("Invalid Signature");
-        } catch (IllegalArgumentException e) {
-            log.error("Jwt is Empty");
+    static Authentication getAuthentication(HttpServletRequest response) {
+        String token = response.getHeader("Authorization");
+
+        if (token != null) {
+            String user = Jwts.parser()
+                    .setSigningKey(JWT_KEY)
+                    .parseClaimsJws(token.replace("Bearer ", ""))
+                    .getBody()
+                    .getSubject();
+
+            if (user != null) {
+                return new UsernamePasswordAuthenticationToken(user, null, Collections.emptyList());
+            }
         }
-        return false;
+
+        return null;
     }
 }
